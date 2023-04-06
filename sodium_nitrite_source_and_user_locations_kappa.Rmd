@@ -1,0 +1,162 @@
+---
+title: "round_3_reliability"
+author: "Drew Walker"
+date: "10/24/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(irr)
+library(janitor)
+library(table1)
+library(here)
+library(gt)
+```
+
+
+```{r read-and-clean-data}
+# User location: 
+# Drew data cleaning
+raw_annotation_data_dw <- read_csv("sample_location_sn_posts_revised_750.csv") %>% 
+  clean_names()
+dw_100_annotated <- raw_annotation_data_dw %>% 
+  head(100) %>% 
+mutate(source_drew = case_when(annotation_source %in% c("1","4") ~ 1,
+                                 annotation_source %in% c("2","3")~ 0),
+       user_drew = case_when(annotation_source %in% c("2","4")~1,
+                                 annotation_source %in% c("1","3")~0))
+#Drew Data clean
+drew_data <- dw_100_annotated %>% 
+  select(row_id_new,sentence,locations,source_drew,user_drew)
+
+drew_merge_data <- drew_data %>% 
+  select(row_id_new,source_drew,user_drew)
+# Sudeshna data clean
+raw_annotation_data_sudeshna <- read_csv("100_sn_location_annotation_sudeshna_complete.csv") %>% 
+  clean_names() %>% 
+  rename(user_sudeshna = user_location,
+         source_sudeshna = source_location) %>% 
+  select(row_id_new,sentence,locations,source_sudeshna,user_sudeshna)
+
+#combined_data_clean
+combined_df_clean <- left_join(raw_annotation_data_sudeshna,drew_merge_data, by = "row_id_new")
+
+
+```
+
+# Interrater kappas 
+
+
+```{r create-users-data-and-kappa}
+# Users df
+users_sudeshna <- raw_annotation_data_sudeshna %>% 
+  select(row_id_new,user_sudeshna)
+users_drew <- drew_data %>% 
+  select(row_id_new,user_drew)
+
+#Join
+combined_users <- left_join(users_sudeshna,users_drew, by = "row_id_new") %>% 
+  select(user_drew,user_sudeshna)
+
+user_location_kappa <- irr::kappa2(combined_users)
+user_location_kappa
+
+```
+
+```{r create-source-location-data-and-kappa}
+# Source location df
+source_sudeshna <- raw_annotation_data_sudeshna %>% 
+  select(row_id_new,source_sudeshna)
+source_drew <- drew_data %>% 
+  select(row_id_new,source_drew)
+
+#Join
+combined_locations <- left_join(source_sudeshna,source_drew, by = "row_id_new") %>% 
+  select(source_drew,source_sudeshna)
+
+source_location_kappa <- irr::kappa2(combined_locations)
+source_location_kappa
+
+```
+
+
+```{r kappas}
+
+relevant_words <- raw_annotation_data_dw_jl %>% 
+  select(drew_code,jenn_code)
+
+relevant_word_kappa <- irr::kappa2(relevant_words)
+relevant_word_kappa
+
+```
+
+# ID Disagreements 
+
+```{r}
+combined_location_user_df_clean <- combined_df_clean %>% 
+  mutate(user_agree = case_when(user_drew==user_sudeshna~1, TRUE~0),
+         source_agree = case_when(source_drew==source_sudeshna~1,TRUE~0))
+table(combined_location_user_df_clean$user_agree) 
+table(combined_location_user_df_clean$source_agree)
+
+source_disagreements <- combined_location_user_df_clean %>% 
+  filter(source_agree == 0)
+gt(source_disagreements) %>% 
+  tab_header("Source Disagreements")%>% 
+  gtsave("Source_disagreements.html", inline_css = TRUE, 
+         path = here())
+
+
+user_disagreements <- combined_location_user_df_clean %>% 
+  filter(user_agree == 0)
+gt(user_disagreements) %>% 
+  tab_header("User Disagreements")%>% 
+  gtsave("user_disagreements.html", inline_css = TRUE, 
+         path = here())
+
+
+```
+
+
+
+```{r combine-labels}
+combined <- raw_annotation_data_dw_jl %>% 
+  mutate(relevant_combined = case_when(drew_code==1|jenn_code==1 ~1,TRUE~0))
+table(combined$relevant_combined) 
+
+combined_word_getter <- combined %>% 
+  filter(relevant_combined == 1) %>% 
+  filter(similar_word != "favoritism" & similar_word != "racial_stereotype" & similar_word != "racial_stereotype" & similar_word != "pity" & similar_word != "abusee" & similar_word != "abusive")
+
+word_list <- combined_word_getter %>% 
+  select(similar_word,stem_word,score)
+write_csv(word_list, "word_list_expanded.csv")
+#include one to take out the disagreements 
+
+```
+
+# Disagreements
+## Drew yes, Jenn No
+* fiend
+* favoritism
+* racial_stereotype
+* pity
+
+
+## Jenn Yes, Drew No
+* Abusee
+* Abusive
+* Unrepentant abuser
+
+```{r final-stem-list}
+#final stem-list creation
+round_2<- read_csv("round_2_bias_lexicon_stem_and_similar_adju.csv")
+
+word_list_round_2 <- round_2 %>% 
+  filter(Jenn_code=="1") %>% 
+  select(similar_word,stem_word)
+write_csv(word_list_round_2,"word_list_round_2.csv")
+```
+
