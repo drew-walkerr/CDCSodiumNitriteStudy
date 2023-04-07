@@ -82,16 +82,6 @@ source_location_kappa
 ```
 
 
-```{r kappas}
-
-relevant_words <- raw_annotation_data_dw_jl %>% 
-  select(drew_code,jenn_code)
-
-relevant_word_kappa <- irr::kappa2(relevant_words)
-relevant_word_kappa
-
-```
-
 # ID Disagreements 
 
 ```{r}
@@ -116,47 +106,22 @@ gt(user_disagreements) %>%
   gtsave("user_disagreements.html", inline_css = TRUE, 
          path = here())
 
+agreements <- combined_location_user_df_clean %>% 
+  filter(user_agree == 1& source_agree ==1) %>% 
+  mutate(source_location_label = source_drew,
+         user_location_label = user_drew)
 
+
+disagreements <- rbind(user_disagreements,source_disagreements) %>% 
+  distinct(row_id_new, .keep_all = TRUE) %>% 
+  mutate(source_location_label= "",
+         user_location_label = "")
+write_csv(disagreements, "disagreements_to_adjudicate.csv")
+
+
+adjudications <- read_csv("adjudications_sn_locations.csv")
 ```
 
+# Adjudications
 
-
-```{r combine-labels}
-combined <- raw_annotation_data_dw_jl %>% 
-  mutate(relevant_combined = case_when(drew_code==1|jenn_code==1 ~1,TRUE~0))
-table(combined$relevant_combined) 
-
-combined_word_getter <- combined %>% 
-  filter(relevant_combined == 1) %>% 
-  filter(similar_word != "favoritism" & similar_word != "racial_stereotype" & similar_word != "racial_stereotype" & similar_word != "pity" & similar_word != "abusee" & similar_word != "abusive")
-
-word_list <- combined_word_getter %>% 
-  select(similar_word,stem_word,score)
-write_csv(word_list, "word_list_expanded.csv")
-#include one to take out the disagreements 
-
-```
-
-# Disagreements
-## Drew yes, Jenn No
-* fiend
-* favoritism
-* racial_stereotype
-* pity
-
-
-## Jenn Yes, Drew No
-* Abusee
-* Abusive
-* Unrepentant abuser
-
-```{r final-stem-list}
-#final stem-list creation
-round_2<- read_csv("round_2_bias_lexicon_stem_and_similar_adju.csv")
-
-word_list_round_2 <- round_2 %>% 
-  filter(Jenn_code=="1") %>% 
-  select(similar_word,stem_word)
-write_csv(word_list_round_2,"word_list_round_2.csv")
-```
 
