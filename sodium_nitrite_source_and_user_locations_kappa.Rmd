@@ -30,7 +30,7 @@ mutate(source_drew = case_when(annotation_source %in% c("1","4") ~ 1,
 #Drew Data clean
 drew_data <- dw_100_annotated %>% 
   select(row_id_new,sentence,locations,source_drew,user_drew)
-
+write_csv(drew_data, "100_sn_location_annotaion_drew_complete.csv")
 drew_merge_data <- drew_data %>% 
   select(row_id_new,source_drew,user_drew)
 # Sudeshna data clean
@@ -43,7 +43,54 @@ raw_annotation_data_sudeshna <- read_csv("100_sn_location_annotation_sudeshna_co
 #combined_data_clean
 combined_df_clean <- left_join(raw_annotation_data_sudeshna,drew_merge_data, by = "row_id_new")
 
+combined_df_clean$location_list <- as.list(strsplit(combined_df_clean$locations,","))
+length(combined_df_clean$location_list[[14]])
+combined_df_clean2 <- combined_df_clean %>%
+  group_by(row_id_new) %>% 
+  mutate(multiple_locations = ifelse(map_int(location_list, length) > 1, 1, 0))
 
+
+
+unnested_df_clean <- combined_df_clean2 %>% 
+  unnest(location_list) 
+# Need to create column for final score
+
+single_locations <- unnested_df_clean %>% 
+  filter(multiple_locations == 0)
+# For agreements, make whatever Drew/Sudeshna said to carry forward agreements. 
+# Add Adjudications
+
+# For multiple locations: 
+# 1. Grab df of multiple locations
+
+
+multiple_locations <- unnested_df_clean %>% 
+  filter(multiple_locations == 1)
+# 2. Erase the original codes for these multiple to overwrite them 
+multiple_locations$user_sudeshna <- ""
+multiple_locations$source_sudeshna <- ""
+
+multiple_locations$user_drew <- ""
+multiple_locations$source_drew <- ""
+# 2b. Number each sequential location to distinguish same country used twice
+multiple_locations2 <- multiple_locations %>% 
+  select(row_id_new,sentence,location_list,source_sudeshna,user_sudeshna,source_drew,user_drew,multiple_locations,locations) %>% 
+  group_by(row_id_new) %>% 
+  mutate(location_number = seq_along(location_list))
+write_csv(multiple_locations2,"multiple_location_sn_annotation.csv", na = "")
+# 3. Annotaion of the multiples at the location level for Drew + Sudeshna
+# 4. Assess IR for multiple locations
+# 5. Adjudicate 
+# 6. Create gold standard final labels for multiple
+# 7. Merge into gold standard final labels for single-- add these adjudications above 
+
+# Additional labels
+
+## Explode the 750 sentence sample by duplicating all elements in location list 
+## Integrate gold label annotations for first 100
+## Split remaining 500 between two sections-- Sudeshna = 250, me = 250 
+
+# Run models
 ```
 
 # Interrater kappas 
@@ -119,7 +166,7 @@ disagreements <- rbind(user_disagreements,source_disagreements) %>%
 write_csv(disagreements, "disagreements_to_adjudicate.csv")
 
 
-adjudications <- read_csv("adjudications_sn_locations.csv")
+#adjudications <- read_csv("adjudications_sn_locations.csv")
 ```
 
 # Adjudications
