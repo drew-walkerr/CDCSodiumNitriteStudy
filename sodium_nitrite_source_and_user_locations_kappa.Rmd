@@ -211,7 +211,7 @@ combined_multi_annotations_merge <- combined_multi_annotations %>%
 # Merge with single annotations -- replace the original codes there
 gold_multiple_locations_merge <- gold_multiple_location %>% 
   filter(multiple_locations == "0") %>% 
-  select(row_id_new,sentence,location,location_number,source_location_label,user_location_label)
+  select(row_id_new,Sentence=sentence,location,location_number,source_location_label,user_location_label)
 
 gold_standard_multi_100_sentences <- bind_rows(gold_multiple_locations_merge,combined_multi_annotations_merge)
 
@@ -232,30 +232,54 @@ unnested_1000_sample <- dataset_1000_sample %>%
   group_by(ROW_ID_new) %>% 
   mutate(location_number = seq_along(locations)) %>% 
   rename(location= locations,
-         row_id_new = ROW_ID_new)
-
+         row_id_new = ROW_ID_new) %>% 
+  ungroup() %>% 
+  distinct(row_id_new,location,location_number,Sentence, .keep_all = TRUE)
+#1200 full sample
 # These locations are not broken up by sentence-- it's on post 
 
-sample_to_annotate <- anti_join(unnested_1000_sample,gold_standard_multi_100_sentences, by = "row_id_new")
+
+## GOLD STANDARD ##### 
+#Update what has already been confirmed as gold standard
+gold_323 <- read_csv("gold-323.csv") %>% 
+  distinct(row_id_new = rowidnew,location,location_number=locnum,Sentence=sentence, .keep_all = TRUE)
+# Read in new .csvs here, making sure columns are clean before row_bind
 
 
-# Get next 400 
+### NOT YET CODED IDENTIFY###### 
+sample_to_annotate <- anti_join(unnested_1000_sample,gold_323, by = c("row_id_new","location","location_number","Sentence"))
+
+### DUPLICATE REMOVAL #####
+sample_to_annotate %>% 
+  distinct(row_id_new,location,location_number,Sentence)
+##1120 distinct left, first round of 100 was actually 80 distinct 
+
+# Get next 400 #####
 
 sample_to_annotate_400 <- sample_to_annotate %>% 
   head(n = 400) %>% 
   select(row_id_new,post_text,location,location_number,Sentence) %>% 
   mutate(souce_label = "",
          user_label ="")
-#
-# Clean and Split 
+# Clean and Split between coders ####
+#Sudeshna 
 sample_to_annotate_sudeshna_200 <- sample_to_annotate_400 %>% 
-  head(n = 200)
-write_csv(sample_to_annotate_sudeshna_200,"cdc_sn_sudeshna_200_annotation_round_2.csv")
+  head(n = 200) %>% 
+  select(-post_text)
+write_csv(sample_to_annotate_sudeshna_200,"cdc_sn_sudeshna_200_annotation_round_3.csv")
 # Drew
 sample_to_annotate_drew_200 <- sample_to_annotate_400 %>% 
-  tail(n = 200)
+  tail(n = 200) %>% 
+    select(-post_text)
 write_csv(sample_to_annotate_drew_200,"cdc_sn_drew_200_annotation_round_2.csv")
 
+
+
+## Test all new ones are not in originally coded gold standard ######
+test <- semi_join(sample_to_annotate_400,gold_323, by = c("row_id_new","location","location_number","Sentence"))
+
+test2 <- semi_join(sample_to_annotate_sudeshna_200,sample_to_annotate_drew_200, by = c("row_id_new","location","location_number","Sentence"))
+# To add new gold standard, simply edit the code under gold standard to include new values  
 
 ```
 
